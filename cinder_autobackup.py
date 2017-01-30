@@ -66,32 +66,35 @@ for project in projects_to_backup:
 
     for volume in volumes_to_backup:
         logging.info(u'Creating backup for volume %s' % volume)
-        backup_req = cinder.backups.create(volume_id = volume,
-					   name='autobackup_' + datetime.now().strftime("%Y%m%d%H%M%S"),
-					   description='Automated backup of volume UUID %s, created at %s' % (volume, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-					   force=True)
-        sleep(5)
-        backup = cinder.backups.get(backup_req.id)
-        while backup.status == 'creating':
-            logging.info(u'Waiting for backup to create: ' + backup.status)
+	try:
+            backup_req = cinder.backups.create(volume_id = volume,
+					       name='autobackup_' + datetime.now().strftime("%Y%m%d%H%M%S"),
+					       description='Automated backup of volume UUID %s, created at %s' % (volume, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+					       force=True)
             sleep(5)
             backup = cinder.backups.get(backup_req.id)
-        else:
-            if backup.status == 'available':
-                logging.info(u'Backup for volume %s created successfully' % (volume))
-                availablebackups = cinder.backups.list(search_opts = {'volume_id': volume})
-                logging.info(u'Checking for backups older than 7 days')
-                for availablebackup in availablebackups:
-                    created_timestamp = datetime.strptime(availablebackup.created_at, '%Y-%m-%dT%H:%M:%S.%f')
-                    if (datetime.now() - created_timestamp).days > 7:
-                        logging.info(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
-                        cinder.backups.delete(availablebackup)
-		    else:
-			logging.info(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
-                logging.info(u'Check complete.')
-            elif backup.status == 'error':
-                logging.critical(u'Error creating backup for volume %s' % (volume))
+            while backup.status == 'creating':
+                logging.info(u'Waiting for backup to create: ' + backup.status)
+                sleep(5)
+                backup = cinder.backups.get(backup_req.id)
             else:
-                logging.critical(u'Unknown error creating backup for volume %s' % (volume))
+                if backup.status == 'available':
+                    logging.info(u'Backup for volume %s created successfully' % (volume))
+                    availablebackups = cinder.backups.list(search_opts = {'volume_id': volume})
+                    logging.info(u'Checking for backups older than 7 days')
+                    for availablebackup in availablebackups:
+                        created_timestamp = datetime.strptime(availablebackup.created_at, '%Y-%m-%dT%H:%M:%S.%f')
+                        if (datetime.now() - created_timestamp).days > 7:
+                            logging.info(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+                            cinder.backups.delete(availablebackup)
+		        else:
+			    logging.info(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+                    logging.info(u'Check complete.')
+                elif backup.status == 'error':
+                    logging.critical(u'Error creating backup for volume %s' % (volume))
+                else:
+                    logging.critical(u'Unknown error creating backup for volume %s' % (volume))
+	except cinderclient.exceptions.OverLimit:
+	    logging.error(u'Backup creation failed, quota limit reached.')
 
 logging.info(u'Job complete.')
