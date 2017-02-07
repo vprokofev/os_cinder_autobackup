@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import logging
+#import logging
 import argparse
 import ConfigParser
 from time import sleep
@@ -20,9 +20,20 @@ parser.add_argument('--log_file', type = str,
 		    help = 'path to log file')
 args = parser.parse_args()
 
-logging.basicConfig(level = logging.INFO, format = u'[%(asctime)s]  %(message)s', filename = args.log_file)
+## currently cinderclient is bugged, and logger can't be used with it
+## for that reason i have to write my own logger
+## https://bugs.launchpad.net/python-cinderclient/+bug/1647846
 
-logging.debug(u'Loaded libraries.')
+log = open(args.log_file, 'a', 0)
+
+def logdate(logmessage):
+    log.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + ' ' + logmessage + '\n')
+
+#logger = logging.getLogger(__name__)
+#logger.logging.basicConfig(level = logging.INFO, format = u'[%(asctime)s]  %(message)s', filename = args.log_file)
+
+#logger.debug(u'Loaded libraries.')
+logdate(u'Loaded libraries.')
 
 config = ConfigParser.ConfigParser()
 config.read(args.config_file)
@@ -58,14 +69,16 @@ for project in projects_to_backup:
     sess = session.Session(auth=auth)
     cinder = cinderclient.Client('2', session=sess)
 
-    logging.info(u'Creating list of volumes to backup for project %s' % (project))
+    #logging.info(u'Creating list of volumes to backup for project %s' % (project))
+    logdate(u'Creating list of volumes to backup for project %s' % (project))
     volumes_to_backup = []
     list1 = cinder.volumes.list(search_opts = {'project_id': project})
     for volume in list1:
         volumes_to_backup.append(volume.id)
 
     for volume in volumes_to_backup:
-        logging.info(u'Creating backup for volume %s' % volume)
+        #logging.info(u'Creating backup for volume %s' % volume)
+	logdate(u'Creating backup for volume %s' % volume)
 	try:
             backup_req = cinder.backups.create(volume_id = volume,
 					       name='autobackup_' + datetime.now().strftime("%Y%m%d%H%M%S"),
@@ -74,27 +87,40 @@ for project in projects_to_backup:
             sleep(5)
             backup = cinder.backups.get(backup_req.id)
             while backup.status == 'creating':
-                logging.info(u'Waiting for backup to create: ' + backup.status)
+                #logging.info(u'Waiting for backup to create: ' + backup.status)
+		logdate(u'Waiting for backup to create: %s' % backup.status)
                 sleep(5)
                 backup = cinder.backups.get(backup_req.id)
             else:
                 if backup.status == 'available':
-                    logging.info(u'Backup for volume %s created successfully' % (volume))
+                    #logging.info(u'Backup for volume %s created successfully' % (volume))
+		    logdate(u'Backup for volume %s created successfully' % (volume))
                     availablebackups = cinder.backups.list(search_opts = {'volume_id': volume})
-                    logging.info(u'Checking for backups older than 7 days')
+                    #logging.info(u'Checking for backups older than 7 days')
+		    logdate(u'Checking for backups older than 7 days')
                     for availablebackup in availablebackups:
                         created_timestamp = datetime.strptime(availablebackup.created_at, '%Y-%m-%dT%H:%M:%S.%f')
                         if (datetime.now() - created_timestamp).days > 7:
-                            logging.info(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+                            #logging.info(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+			    logdate(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
                             cinder.backups.delete(availablebackup)
 		        else:
-			    logging.info(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
-                    logging.info(u'Check complete.')
+			    #logging.info(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+			    logdate(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+                    #logging.info(u'Check complete.')
+		    logdate(u'Check complete.')
                 elif backup.status == 'error':
-                    logging.critical(u'Error creating backup for volume %s' % (volume))
+                    #logging.critical(u'Error creating backup for volume %s' % (volume))
+		    logdate(u'Error creating backup for volume %s' % (volume))
                 else:
-                    logging.critical(u'Unknown error creating backup for volume %s' % (volume))
+                    #logging.critical(u'Unknown error creating backup for volume %s' % (volume))
+		    logdate(u'Error creating backup for volume %s' % (volume))
 	except cinderclient.exceptions.OverLimit:
-	    logging.error(u'Backup creation failed, quota limit reached.')
+	    #logging.error(u'Backup creation failed, quota limit reached.')
+	    logdate(u'Backup creation failed, quota limit reached.')
+	except cinderclient.exceptions.BadRequest:
+	    logdate(u'Backup creation failed, bad request. Perhaps volume is in "backing up" state? Check cinder-backup log for more info.')
 
-logging.info(u'Job complete.')
+#logging.info(u'Job complete.')
+logdate(u'Job complete.')
+log.close()
