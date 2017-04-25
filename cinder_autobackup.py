@@ -102,11 +102,22 @@ for project in projects_to_backup:
                         created_timestamp = datetime.strptime(availablebackup.created_at, '%Y-%m-%dT%H:%M:%S.%f')
                         if (datetime.now() - created_timestamp).days > 7:
                             #logging.info(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
-			    logdate(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+			    logdate(u'Backup %s is %s days old, which is greater than 7 days, deleting' % (availablebackup.id, (datetime.now() - created_timestamp).days))
+			    backupstillexists = availablebackup.id
                             cinder.backups.delete(availablebackup)
+			    sleep(5)
+			    try:
+				while backupstillexists:
+				    logdate(u'Waiting for backup %s to delete: %s' % (availablebackup.id, availablebackup.status))
+				    sleep(5)
+				    backupstillexists = cinder.backups.get(availablebackup.id)
+				else:
+				    pass
+			    except cinderclient.exceptions.NotFound:
+				logdate(u'Backup %s deleted, proceeding' % availablebackup.id)
 		        else:
 			    #logging.info(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
-			    logdate(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup, (datetime.now() - created_timestamp).days))
+			    logdate(u'Backup %s is %s days old, which is less than 7 days, not deleting' % (availablebackup.id, (datetime.now() - created_timestamp).days))
                     #logging.info(u'Check complete.')
 		    logdate(u'Check complete.')
                 elif backup.status == 'error':
