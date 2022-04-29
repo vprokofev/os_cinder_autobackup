@@ -1,0 +1,13 @@
+---
+clouds:
+  openstack:
+    auth:
+      auth_url: https://controller.address:5000/v3
+      username: admin_user
+      password: secret_password
+      project_name: backup_project
+      user_domain_name: default
+      project_domain_name: default
+    region_name: RegionOne
+    interface: public
+    identity_api_version: 3

@@ -1,0 +1,12 @@
+---
+plan:
+  - id: 475c33b2-fa86-44a6-bec4-b3fb3f6862ef
+    depth: 3
+  - id: 6b824da9-05bc-42df-8de5-78e5627b6ea7
+    depth: 13
+report:
+  mail_from: "backup@domain.example"
+  mail_to:
+    - "Admin One <one@domain.example>"
+    - "Operator Two <two@operator.example>"
+  smtp_server: smtp.server.example
