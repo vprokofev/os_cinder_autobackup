@@ -51,12 +51,28 @@ def create_connection():
     return conn
 
 
+def der_name(conn, log, vol_id):
+    vol = conn.volume.get_volume(vol_id)
+    dname = None
+    sname = None
+    pname = None
+    try:
+        dname = vol.attachments[0]["device"]
+        aserver = conn.compute.get_server(vol.attachments[0]["server_id"])
+        sname = aserver.name
+    except Exception as e:
+        log.warning(f"volume {vol_id} not attached to any server")
+    pname = vol.location.project.name
+    vname = vol.name
+    return f"{pname} - {sname} - {dname} - {vname}"
+
+
 def create_backup(conn, log, volume_id, poll):
     log.info(f"backing up volume {volume_id}")
     try:
         backup = conn.volume.create_backup(volume_id=volume_id, force=True,
-                                           name="backup",
-                                           description="backup")
+                                           name=der_name(conn, log, volume_id),
+                                           description="automatic backup")
     except Exception as e:
         log.warning(f"{e}")
         return False
