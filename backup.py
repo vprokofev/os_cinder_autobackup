@@ -91,8 +91,11 @@ def prep_delete(conn, log, volume_id, depth):
 
 def delete_backups(conn, log, dlist):
     for backup_id in dlist:
-        log.info(f"removing backup {backup_id}")
-        conn.volume.delete_backup(backup_id)
+        try:
+            log.info(f"removing backup {backup_id}")
+            conn.volume.delete_backup(backup_id)
+        except Exception as e:
+            log.warning(f"{e}")
 
 
 def report(rcfg, log, created, deleted, failed):
