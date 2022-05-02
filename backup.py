@@ -2,6 +2,7 @@
 
 import argparse
 from email.message import EmailMessage
+from datetime import datetime
 import logging
 import smtplib
 import sys
@@ -70,9 +71,10 @@ def der_name(conn, log, vol_id):
 def create_backup(conn, log, volume_id, poll):
     log.info(f"backing up volume {volume_id}")
     try:
+        desc_msg = f"created at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         backup = conn.volume.create_backup(volume_id=volume_id, force=True,
                                            name=der_name(conn, log, volume_id),
-                                           description="automatic backup")
+                                           description=f"{desc_msg}")
     except Exception as e:
         log.warning(f"{e}")
         return False
