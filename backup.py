@@ -107,20 +107,30 @@ def prep_delete(conn, log, volume_id, depth):
     return dlist
 
 
-def delete_backups(conn, log, dlist):
-    for backup_id in dlist:
-        try:
-            log.info(f"removing backup {backup_id}")
-            conn.volume.delete_backup(backup_id)
-        except Exception as e:
-            log.warning(f"{e}")
+def delete_backup(conn, log, backup_id, poll):
+    log.info(f"removing backup {backup_id}")
+    try:
+        backup = conn.volume.get_backup(backup_id)
+        conn.volume.delete_backup(backup_id)
+        while backup:
+            log.debug(f"backup {backup_id} status: {backup.status}")
+            sleep(poll)
+            backup = conn.volume.get_backup(backup_id)
+    except openstack.exceptions.ResourceNotFound:
+        log.info(f"backup {backup_id} deleted")
+        return True
+    except Exception as e:
+        log.warning(f"{e}")
+        return False
 
 
-def report(rcfg, log, created, deleted, failed):
+def report(rcfg, log, created, deleted, failed, delete_failed):
     mdata = (f"backups created: {created}\n"
              f"backups deleted: {deleted}\n")
     if failed != 0:
-        mdata += f"backups failed: {failed}"
+        mdata += f"backups failed: {failed}\n"
+    if delete_failed != 0:
+        mdata += f"deletions failed: {delete_failed}\n"
     msg = EmailMessage()
     msg["From"] = rcfg["mail_from"]
     msg["To"] = rcfg["mail_to"]
@@ -132,11 +142,14 @@ def report(rcfg, log, created, deleted, failed):
     except Exception as e:
         log.warning(f"{e}")
 
+
 def main():
     args = parse_args()
     conn = create_connection()
     log = create_logger(args.log_level, args.log_file)
     dlist = []
+    deleted = 0
+    delete_failed = 0
     created = 0
     failed = 0
     with open(args.config, "r") as config:
@@ -150,11 +163,14 @@ def main():
                 dlist.extend(plist)
             else:
                 failed += 1
-        delete_backups(conn, log, dlist)
-        deleted = len(dlist)
+        for backup_id in dlist:
+            if delete_backup(conn, log, backup_id, args.poll):
+                deleted += 1
+            else:
+                delete_failed += 1
         try:
             rcfg = cfg["report"]
-            report(rcfg, log, created, deleted, failed)
+            report(rcfg, log, created, deleted, failed, delete_failed)
         except KeyError:
             log.warning("no report section in configuration, skipping")
 
